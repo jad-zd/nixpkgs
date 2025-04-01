@@ -103,6 +103,7 @@ in
         {
           name ? "offline",
           src ? null,
+          yarnLock ? "",
           hash ? "",
           sha256 ? "",
           ...
@@ -142,6 +143,7 @@ in
             buildPhase = ''
               runHook preBuild
 
+              yarnLock=${yarnLock}
               yarnLock=''${yarnLock:=$PWD/yarn.lock}
               mkdir -p $out
               (cd $out; prefetch-yarn-deps --verbose --builder $yarnLock)

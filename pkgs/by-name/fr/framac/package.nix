@@ -11,6 +11,14 @@
   why3,
   gdk-pixbuf,
   wrapGAppsHook3,
+
+  yarn,
+  nodejs_22,
+  fetchYarnDeps,
+  fixup-yarn-lock,
+  makeWrapper,
+  headache,
+  electron,
 }:
 
 let
@@ -54,6 +62,11 @@ stdenv.mkDerivation rec {
     hash = "sha256-OsD5lSYeyCmnvQQr9w/CmsY3kCnrnfMLzARHSOtNKlY=";
   };
 
+  yarnOfflineCache = fetchYarnDeps {
+    yarnLock = "ivette/yarn.lock";
+    hash = "sha256-uRqexHP2b6fZCSksr/muz94SKA6M9FZnNvW4jWs4y6Q=";
+  };
+
   preConfigure = ''
     substituteInPlace src/dune --replace-warn " bytes " " "
   '';
@@ -69,7 +82,14 @@ stdenv.mkDerivation rec {
       findlib
       dune_3
       menhir
-    ]);
+    ])
+    ++ [
+      yarn
+      nodejs_22
+      fixup-yarn-lock
+      makeWrapper
+      headache
+    ];
 
   buildInputs = with ocamlPackages; [
     dune-site
@@ -95,7 +115,25 @@ stdenv.mkDerivation rec {
 
   buildPhase = ''
     runHook preBuild
+
+    export HOME=$(mktemp -d)
+    (
+    cd ivette;
+    yarn config --offline set yarn-offline-mirror "$yarnOfflineCache";
+    fixup-yarn-lock yarn.lock;
+    # ERROR AS YARN TRIES TO FETCH A FILE WITH A DIFFERENT NAME, NAMELY: IT TRIES TO GET https___registry.npmjs.org_tslib___tslib_2.6.2.tgz but the file name is tslib___tslib_2.6.2.tgz
+    yarn --offline --frozen-lockfile --ignore-platform --ignore-scripts --no-progress --non-interactive install;
+    patchShebangs node_modules;
+    )
+
     dune build -j$NIX_BUILD_CORES --release @install
+    (
+    cd ivette;
+    yarn --offline run electron-builder --linux --dir \
+      -c.electronDist=${electron.dist} \
+      -c.electronVersion=${electron.version} \
+      -c.compression=store
+    )
     runHook postBuild
   '';
 
